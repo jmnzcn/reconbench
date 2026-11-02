@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      # Includes the control: the procedure as code must answer all 261 cases exactly.
+      - run: pytest -q
+      - name: the published leaderboard matches the committed runs
+        run: |
+          reconbench leaderboard --out /tmp/lb > /dev/null
+          diff /tmp/lb/leaderboard.md docs/leaderboard.md

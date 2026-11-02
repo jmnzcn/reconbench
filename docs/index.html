@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReconBench results</title>
+<style>
+  :root {
+    --bg: #fbfaf7; --surface: #ffffff; --ink: #1d1d1b; --muted: #6b6a66; --line: #e6e3dc;
+    --accent: #2f5d8a; --good: #2e7d4f; --bad: #b3261e; --bar: #2f5d8a; --bar-bg: #eceae4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161614; --surface: #1f1f1c; --ink: #ecebe7; --muted: #a3a29c; --line: #34332f;
+      --accent: #8fb6dc; --good: #7cc79a; --bad: #f2867e; --bar: #8fb6dc; --bar-bg: #2c2b28;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161614; --surface: #1f1f1c; --ink: #ecebe7; --muted: #a3a29c; --line: #34332f;
+    --accent: #8fb6dc; --good: #7cc79a; --bad: #f2867e; --bar: #8fb6dc; --bar-bg: #2c2b28;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 40px 0 8px; }
+  p { margin: 8px 0; max-width: 720px; }
+  .muted { color: var(--muted); }
+  a { color: var(--accent); }
+  .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover, tbody tr.selected { background: var(--bar-bg); }
+  .score { font-weight: 700; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .good { color: var(--good); }
+  .bar { display: inline-block; height: 8px; border-radius: 4px; background: var(--bar); vertical-align: middle; }
+  .barbg { display: inline-block; width: 80px; height: 8px; border-radius: 4px; background: var(--bar-bg);
+           margin-left: 8px; vertical-align: middle; overflow: hidden; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+  .card h3 { margin: 0 0 6px; font-size: 14px; }
+  .case { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+  footer { margin-top: 48px; font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>ReconBench</h1>
+  <p class="muted">AI agents reconciling Amazon vendor deductions against known answers.
+    <a href="https://github.com/jmnzcn/reconbench">Repository and method</a></p>
+
+  <h2>Leaderboard</h2>
+  <p class="muted">Score = mean exact accuracy of the four tracks. False claims are money an agent claimed that was
+    not owed. Click a row for its misses.</p>
+  <div class="table-wrap"><table id="board">
+    <thead><tr><th>Agent</th><th>Score</th><th>Core</th><th>Messy</th><th>Adversarial</th><th>Ambiguous</th><th>Policy only</th>
+      <th>False claims</th><th>Right proposal</th><th>Cost / case</th><th>Seconds / case</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+
+  <h2 id="detail-title">Misses</h2>
+  <div id="detail" class="grid"></div>
+
+  <footer>Synthetic data built on real product and exchange-rate data. Harness Apache 2.0, data CC BY 4.0.
+    Ney Fred Jiménez Campos · <a href="https://www.linkedin.com/in/neyfred/">LinkedIn</a></footer>
+</main>
+<script>
+const fmt = (v, d = 1) => v === null || v === undefined ? "–" : Number(v).toFixed(d);
+const pctCell = v => `${fmt(v)}<span class="barbg"><span class="bar" style="width:${v || 0}%"></span></span>`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+
+fetch("results.json").then(r => r.json()).then(data => {
+  const body = document.querySelector("#board tbody");
+  data.results.forEach((r, i) => {
+    const s = r.summary, t = s.tracks;
+    const free = ["rules", "scripted", "mcp"].includes(r.backend);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${esc(r.label)}</td><td class="score">${fmt(s.score)}</td>
+      <td>${pctCell(t.core.exact_pct)}</td><td>${pctCell(t.messy.exact_pct)}</td>
+      <td>${pctCell(t.adversarial.exact_pct)}</td><td>${pctCell(t.ambiguous.exact_pct)}</td>
+      <td>${pctCell(t.policy.exact_pct)}</td>
+      <td class="${s.false_claims ? "bad" : "good"}">${s.false_claims ? `${s.false_claims} ($${fmt(s.false_claim_usd, 2)})` : "0"}</td>
+      <td>${fmt(t.ambiguous.proposal_right_pct, 0)}%</td>
+      <td>${free ? "–" : "$" + fmt(s.cost_per_case_usd, 4)}</td><td>${free ? "–" : fmt(s.mean_seconds)}</td>`;
+    tr.onclick = () => show(r, tr);
+    body.appendChild(tr);
+    if (i === 0) show(r, tr);
+  });
+});
+
+function show(r, tr) {
+  document.querySelectorAll("#board tbody tr").forEach(x => x.classList.remove("selected"));
+  tr.classList.add("selected");
+  document.getElementById("detail-title").textContent = `Misses: ${r.label}`;
+  const misses = r.rows.filter(x => !x.exact);
+  const box = document.getElementById("detail");
+  if (!misses.length) { box.innerHTML = `<div class="card">Every case exact.</div>`; return; }
+  const by = {};
+  misses.forEach(m => (by[m.track] = by[m.track] || []).push(m));
+  box.innerHTML = Object.entries(by).map(([track, ms]) => `<div class="card"><h3>${esc(track)}: ${ms.length} missed</h3>` +
+    ms.map(m => `<div class="case">${esc(m.case_id)}: ${esc(m.answered)} <span class="muted">expected ${esc(m.expected)}</span>` +
+      (m.false_claim_usd > 0 ? ` <span class="bad">false claim $${fmt(m.false_claim_usd, 2)}</span>` : "") +
+      (m.style ? ` <span class="muted">[${esc(m.style)}]</span>` : "") + `</div>`).join("") + `</div>`).join("");
+}
+</script>
+</body>
+</html>

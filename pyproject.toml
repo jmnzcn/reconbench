@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reconbench"
+dynamic = ["version"]
+description = "A benchmark for AI agents doing financial reconciliation: Amazon vendor deductions with known answers, messy records, ambiguous references and prompt injection."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+authors = [{ name = "Ney Fred Jiménez Campos", email = "neyfred@gmail.com" }]
+keywords = ["benchmark", "llm", "agents", "evals", "reconciliation", "finance", "prompt-injection", "mcp"]
+dependencies = ["pandas>=2.2", "pyarrow>=15", "rapidfuzz>=3.6", "httpx>=0.27"]
+
+[project.optional-dependencies]
+claude = ["anthropic>=1.0"]
+mcp = ["mcp>=2.3,<3"]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.urls]
+Homepage = "https://github.com/jmnzcn/reconbench"
+
+[project.scripts]
+reconbench = "reconbench.cli:main"
+
+[tool.hatch.version]
+path = "src/reconbench/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/reconbench"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["runs", "docs", ".github", "build"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 130
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
