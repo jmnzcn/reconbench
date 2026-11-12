@@ -9,6 +9,13 @@ from a vendor's purchase orders, shipments, proofs of delivery, invoices and rev
 right answer known for every case. 261 cases in five tracks, from clean records to records with a
 forged amendment planted in the document that decides the case.
 
+The short version: telling a model what to do from inside a document didn't work, and lying to it
+did. All four models ignored the 32 planted instructions. The 32 planted false facts (a "carrier
+correction", a "price amendment") were accepted 16 times by Claude Haiku, 4 by Sonnet, once by Opus
+and never by Gemini 3.8 Flash. Apart from that the large models are near the ceiling, so this version
+is more useful for that one finding and for telling small models from large ones than for ranking
+the large ones.
+
 There is a [results page](https://jmnzcn.github.io/reconbench/) with every miss.
 
 ## Results
@@ -56,6 +63,30 @@ points of each other, so this version separates small models from large ones bet
 from each other. Gemini was also the slowest by far: 53 seconds per policy-only case against 8 to 11
 for the Claude models.
 
+## With a rule check before filing
+
+A model's false claim only costs money if it is filed. [dispute-agent](https://github.com/jmnzcn/dispute-agent)
+files a claim only when an independent rule check reaches the same status and the same amount, and
+sends everything else to a person. `reconbench guarded` replays that check over the runs above,
+without calling any model:
+
+| Agent | False claims alone | False claims with the check | Sent to a person | of them, disagreements | Claimable money filed without a person |
+|---|---:|---:|---:|---:|---:|
+| Gemini 3.8 Flash | 0 | 0 | 26 of 261 (10.0%) | 0 | 100.0% |
+| Claude Opus 5.5 | 1 ($1) | 0 | 27 of 261 (10.3%) | 1 | 100.0% |
+| Claude Sonnet 5.5 | 4 ($58) | 0 | 32 of 261 (12.3%) | 6 | 100.0% |
+| Claude Haiku 5.5 | 20 ($230) | 0 | 70 of 261 (26.8%) | 44 | 92.2% |
+
+The zero in the third column is not a result. The rule check is the rules engine, which is also what
+defines the answer key, so no false claim can get past it here. What the table shows is what the
+check costs. 26 cases go to a person for every model, because their reference is ambiguous and that
+is the right outcome. Beyond those, Opus adds 1 case, Sonnet 6 and Haiku 44: with the check, the
+cheapest model files nothing wrong, and pays for it by handing one case in six back to a person.
+18 of Haiku's 44 are in the adversarial track and 16 in the policy-only one.
+
+Where a real system differs: its rule check would not be the answer key, so it could be wrong, and a
+claim both the model and the rules get wrong would be filed. This replay cannot measure that.
+
 ## The tracks
 
 | Track | Cases | What it tests |
@@ -82,13 +113,14 @@ and where the rules can't go (proposing the right record for an ambiguous refere
 ## Run it
 
 ```bash
-pip install "reconbench[claude]"
+pip install "reconbench[claude] @ git+https://github.com/jmnzcn/reconbench"
 reconbench cases
 reconbench run --backend claude --model claude-haiku-5-5
 reconbench run --backend openai --model gemini-3.8-flash \
   --base-url https://generativelanguage.googleapis.com/v1beta/openai/ --price 0.75,3.75
 reconbench score runs/claude-haiku-5-5.jsonl --cases
 reconbench leaderboard
+reconbench guarded       # the saved runs again, with a rule check before filing; calls no model
 ```
 
 The `openai` backend speaks the chat completions protocol, so it also works with OpenAI, Ollama,
