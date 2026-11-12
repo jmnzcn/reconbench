@@ -1,5 +1,5 @@
 """The rule-check replay, on made-up cases. Decisions state USD cents directly, so no world is loaded."""
-from reconbench.guarded import check, markdown, replay, summarize
+from reconbench.guarded import check, key_episodes, markdown, replay, summarize
 
 
 def case(cid, status, owed=0, track="core"):
@@ -46,6 +46,19 @@ def test_closing_on_a_wrong_agreement_is_counted_not_assumed_away():
     # If the check itself were wrong, agreeing with it would close a case that should not be closed.
     row = check(case("a", "CLAIMABLE", 1000), ep("a", "EXPIRED"), ep("a", "EXPIRED"))
     assert row["outcome"] == "close" and row["wrongly_closed"]
+
+
+def test_the_answer_key_stands_in_for_the_rules_run_and_gives_the_same_replay():
+    from pathlib import Path
+
+    from reconbench import cases as cases_mod
+
+    cases = cases_mod.load()
+    runs = Path(__file__).resolve().parent.parent / "runs"
+    rules = cases_mod.read_run(runs / "rules-engine.jsonl")
+    model = cases_mod.read_run(runs / "claude-haiku-5-5.jsonl")
+    assert replay(cases, model, key_episodes(cases)) == replay(cases, model, rules)
+    assert replay(cases, model, rules)[0]["person"] == 70
 
 
 def test_summary_and_table():

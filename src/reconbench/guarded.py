@@ -19,6 +19,15 @@ from reconbench.score import decision_usd_cents, grade
 OUTCOMES = ("file", "close", "person")
 
 
+def key_episodes(cases: list[dict]) -> list[dict]:
+    """The answer key as if it were a run. The rules engine reproduces the key exactly, so this is the
+    same check, for when its run file is not at hand (the package ships the cases, not the runs)."""
+    return [{"case_id": c["id"], "backend": "rules", "model": "answer key",
+             "decision": {"status": c["expected"]["status"],
+                          "recoverable_usd_cents": c["expected"].get("recoverable_usd_cents", 0)
+                          if c["expected"]["status"] == "CLAIMABLE" else 0}} for c in cases]
+
+
 def check(case: dict, episode: dict | None, rule_episode: dict | None) -> dict:
     row = grade(case, episode)
     d = (episode or {}).get("decision") or {}

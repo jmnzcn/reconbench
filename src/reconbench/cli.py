@@ -141,8 +141,10 @@ def cmd_guarded(args) -> int:
     cases = cases_mod.load()
     rule_episodes = _latest(cases_mod.read_run(Path(args.rules)))
     if len({e["case_id"] for e in rule_episodes} & {c["id"] for c in cases}) != len(cases):
-        print(f"{args.rules} does not have every case: run `reconbench run --backend rules` first", file=sys.stderr)
-        return 2
+        # The rules engine's run is in the repository's runs/ folder, not in the package.
+        print(f"{args.rules} is missing or incomplete: using the answer key as the rule check "
+              "(the rules engine reproduces it exactly)", file=sys.stderr)
+        rule_episodes = guarded.key_episodes(cases)
     results = []
     for p in sorted(Path(args.runs).glob("*.jsonl")):
         eps = _latest(cases_mod.read_run(p))
