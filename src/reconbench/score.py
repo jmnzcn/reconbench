@@ -37,15 +37,20 @@ def proposal_status(proposal: str, candidates: dict[str, str]) -> str | None:
     return candidates[named[0][1]] if named else None
 
 
+def decision_usd_cents(case: dict, decision: dict) -> int:
+    """The amount a decision states, in USD cents at the ECB rate of the deduction date."""
+    if "recoverable_usd_cents" in decision:  # baselines that already work in USD
+        return int(decision["recoverable_usd_cents"])
+    exp = case["expected"]
+    amount = cents(decision.get("recoverable_amount", "")) or 0
+    return World.load(case["world"]).to_usd_cents(amount, exp["currency"], exp["date"]) if amount else 0
+
+
 def grade(case: dict, episode: dict | None) -> dict:
     exp = case["expected"]
     d = (episode or {}).get("decision") or {}
     status = d.get("status", "-")
-    if "recoverable_usd_cents" in d:  # baselines that already work in USD
-        usd = int(d["recoverable_usd_cents"])
-    else:
-        amount = cents(d.get("recoverable_amount", "")) or 0
-        usd = World.load(case["world"]).to_usd_cents(amount, exp["currency"], exp["date"]) if amount else 0
+    usd = decision_usd_cents(case, d)
     claimed = usd if status == "CLAIMABLE" else 0
     owed = exp["recoverable_usd_cents"] if exp["status"] == "CLAIMABLE" else 0
     exact = status == exp["status"] and (exp["status"] != "CLAIMABLE" or abs(usd - owed) <= 1)

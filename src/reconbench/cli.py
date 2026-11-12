@@ -5,6 +5,7 @@
   reconbench run --backend openai --model gemini-2.5-flash --base-url URL --price 0.30,2.50
   reconbench score runs/claude-haiku-5-5.jsonl
   reconbench leaderboard                   score every run in runs/ and write the tables
+  reconbench guarded                       replay the runs with a rule check before filing (calls no model)
   reconbench serve-mcp --case core-001 --out runs/my-agent.jsonl
 """
 from __future__ import annotations
@@ -134,6 +135,34 @@ def cmd_leaderboard(args) -> int:
     return 0
 
 
+def cmd_guarded(args) -> int:
+    from reconbench import guarded
+
+    cases = cases_mod.load()
+    rule_episodes = _latest(cases_mod.read_run(Path(args.rules)))
+    if len({e["case_id"] for e in rule_episodes} & {c["id"] for c in cases}) != len(cases):
+        # The rules engine's run is in the repository's runs/ folder, not in the package.
+        print(f"{args.rules} is missing or incomplete: using the answer key as the rule check "
+              "(the rules engine reproduces it exactly)", file=sys.stderr)
+        rule_episodes = guarded.key_episodes(cases)
+    results = []
+    for p in sorted(Path(args.runs).glob("*.jsonl")):
+        eps = _latest(cases_mod.read_run(p))
+        if not eps or eps[0]["backend"] in ("rules", "scripted"):
+            continue  # the rules checking themselves, and the control, say nothing here
+        if len({e["case_id"] for e in eps} & {c["id"] for c in cases}) != len(cases):
+            print(f"skipping {p.name}: not every case was run", file=sys.stderr)
+            continue
+        summary, rows = guarded.replay(cases, eps, rule_episodes)
+        results.append((eps[0]["model"], summary, rows))
+    results.sort(key=lambda r: r[1]["person"])
+    print(guarded.markdown([(name, s) for name, s, _ in results]))
+    if args.json:
+        Path(args.json).write_text(json.dumps([{"model": n, "summary": s, "rows": rows} for n, s, rows in results],
+                                              indent=1), encoding="utf-8")
+    return 0
+
+
 def cmd_serve_mcp(args) -> int:
     from reconbench.mcp_server import build
 
@@ -174,6 +203,12 @@ def main(argv: list[str] | None = None) -> int:
     lb.add_argument("--runs", default="runs")
     lb.add_argument("--out", default="docs")
     lb.set_defaults(fn=cmd_leaderboard)
+
+    g = sub.add_parser("guarded", help="replay the saved runs with a rule check before filing; calls no model")
+    g.add_argument("--runs", default="runs")
+    g.add_argument("--rules", default="runs/rules-engine.jsonl", help="the rules engine's run, used as the check")
+    g.add_argument("--json", help="also write every case's outcome to this file")
+    g.set_defaults(fn=cmd_guarded)
 
     m = sub.add_parser("serve-mcp", help="serve one case's tools to an MCP agent (stdio)")
     m.add_argument("--case", required=True)
